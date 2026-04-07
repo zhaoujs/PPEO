@@ -1,0 +1,115 @@
+# encoding: utf-8
+import numpy as np
+import random
+
+import archiving_pos
+import pareto_neg
+import archiving_neg
+import pareto_pos
+
+
+def update_v(v_, v_min, v_max, in_, in_pbest, in_gbest, w, c1, c2):
+    # 非线性递减惯性权重
+
+    # 更新速度值。迭代初期（探索），支配粒子快速收敛到非支配粒子附近
+    v_temp = w * v_ + c1 * (in_pbest - in_) + c2 * (in_gbest - in_)
+    # 如果粒子的新速度大于最大值，则置为最大值；小于最小值，则置为最小值（越界处理）
+    for i in range(v_temp.shape[0]):
+        for j in range(v_temp.shape[1]):
+            if v_temp[i, j] < v_min[j]:
+                v_temp[i, j] = v_min[j]
+            if v_temp[i, j] > v_max[j]:
+                v_temp[i, j] = v_max[j]
+    return v_temp
+
+
+def update_v_exploit(v_, v_min, v_max, in_, in_pbest, in_gbest, w, c1, c2):
+    # 迭代后期（开发），支配粒子沿着距离pbest、gbest最近粒子进行移动更新
+    v_temp = w * v_ + c1 * (in_pbest - in_) + c2 * (in_gbest - in_)
+    # 如果粒子的新速度大于最大值，则置为最大值；小于最小值，则置为最小值（越界处理）
+    for i in range(v_temp.shape[0]):
+        for j in range(v_temp.shape[1]):
+            if v_temp[i, j] < v_min[j]:
+                v_temp[i, j] = v_min[j]
+            if v_temp[i, j] > v_max[j]:
+                v_temp[i, j] = v_max[j]
+    return v_temp
+
+
+def update_in(in_, v_, in_min, in_max):
+    # 更新位置参数
+    in_temp = in_ + v_
+    # 大于最大值，则置为最大值；小于最小值，则置为最小值
+    for i in range(in_temp.shape[0]):
+        for j in range(in_temp.shape[1]):
+            if in_temp[i, j] < in_min[j]:
+                in_temp[i, j] = in_min[j]
+            if in_temp[i, j] > in_max[j]:
+                in_temp[i, j] = in_max[j]
+    return in_temp
+
+
+"""更新pbest，若出现互不支配的情况，如何处理"""
+
+
+def compare_pbest(in_indiv, pbest_indiv):
+    num_greater = 0
+    num_less = 0
+    for i in range(len(in_indiv)):
+        if in_indiv[i] > pbest_indiv[i]:
+            num_greater = num_greater + 1
+        if in_indiv[i] < pbest_indiv[i]:
+            num_less = num_less + 1
+    # 如果当前粒子支配历史pbest，则更新,返回True
+    if num_greater > 0 and num_less == 0:
+        return True
+    # 如果历史pbest支配当前粒子，则不更新,返回False
+    elif num_greater == 0 and num_less > 0:
+        return False
+    else:
+        # 如果互不支配，则按照概率决定是否更新
+        random_ = random.uniform(0.0, 1.0)
+        if random_ > 0.5:
+            return True
+        else:
+            return False
+
+
+def update_pbest(in_, fitness_, syn_, in_pbest, fitness_pbest, syn_pbest):
+    for i in range(fitness_pbest.shape[0]):
+        # 通过比较历史pbest和当前粒子适应值，决定是否需要更新pbest的值。
+        if compare_pbest(fitness_[i], fitness_pbest[i]):
+            fitness_pbest[i] = fitness_[i]
+            in_pbest[i] = in_[i]
+            syn_pbest[i] = syn_[i]
+    return in_pbest, fitness_pbest, syn_pbest
+
+
+def update_archive(in_, fitness_, syn_, archive_in, archive_fitness, archive_syn,
+                   thresh, mesh_div, min_, max_, particals):
+    # 首先，计算当前粒子群的pareto边界，将边界粒子加入到存档archiving中
+    pareto_1 = pareto_pos.Pareto_(in_, fitness_, syn_)
+    curr_in, curr_fit, curr_syn = pareto_1.pareto()
+    # 其次，在存档中根据支配关系进行第二轮筛选，将非边界粒子去除
+    in_new = np.concatenate((archive_in, curr_in), axis=0)
+    fitness_new = np.concatenate((archive_fitness, curr_fit), axis=0)
+    # syn_new = np.concatenate((archive_syn, curr_syn), axis=0)
+    archive_syn = np.array(archive_syn)
+    curr_syn = np.array(curr_syn)
+    syn_new = np.array(archive_syn.tolist() + curr_syn.tolist())
+    pareto_2 = pareto_pos.Pareto_(in_new, fitness_new, syn_new)
+    curr_archiving_in, curr_archiving_fit, curr_archiving_syn = pareto_2.pareto()
+    # 最后，判断存档数量是否超过了存档阀值。如果超过了阀值，则清除掉一部分（拥挤度高的粒子被清除的概率更大）
+    if (curr_archiving_in).shape[0] > thresh:
+        clear_ = archiving_pos.clear_archiving(curr_archiving_in, curr_archiving_fit, curr_archiving_syn,
+                                               mesh_div, min_, max_, particals)
+        curr_archiving_in, curr_archiving_fit, curr_archiving_syn = clear_.clear_(thresh)
+    return curr_archiving_in, curr_archiving_fit, curr_archiving_syn
+
+
+"""根据网格搜索选择gbest"""
+
+
+def update_gbest(archiving_in, archiving_fit, archive_syn, mesh_div, min_, max_, particals):
+    get_g = archiving_pos.get_gbest(archiving_in, archiving_fit, archive_syn, mesh_div, min_, max_, particals)
+    return get_g.get_gbest()
