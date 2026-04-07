@@ -44,13 +44,13 @@ def Stratified_fold_K_version_2(x, y, n_spli=5, use_file=None, random_sta=42):
 
 def run_item(data_name, No, train_x, train_y):
 
-    w = 0.7298  # 惯性因子
-    c1 = 1.49  # 局部速度因子
-    c2 = 1.49  # 全局速度因子
-    particals = 15  # 粒子群的数量
-    cycle_ = 30  # 迭代次数
-    mesh_div = 3  # 网格等分数量
-    thresh = 20  # 外部存档阀值
+    w = 0.7298 
+    c1 = 1.49  
+    c2 = 1.49  
+    particals = 15 
+    cycle_ = 30  
+    mesh_div = 3  
+    thresh = 20  
     min_label = 1
 
     model = MLPClassifier(hidden_layer_sizes=(100,), max_iter=500)
@@ -61,7 +61,7 @@ def run_item(data_name, No, train_x, train_y):
 
 if __name__ == '__main__':
 
-    filename = "ecoli4.txt"
+    filename = ""
     x, y = loadfile(filename)
     mm = StandardScaler()
     x = mm.fit_transform(x)
